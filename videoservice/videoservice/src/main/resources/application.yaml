@@ -23,6 +23,11 @@ aws:
   s3:
     bucket-name: ${AWS_BUCKET_NAME}
 
+kafka:
+  topics:
+    video-uploaded: video.uploaded
+    video-encoded: video.encoded
+
 management:
   endpoints:
     web:

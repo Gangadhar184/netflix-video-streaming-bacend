@@ -1,6 +1,6 @@
 package com.example.videoservice.service;
 
-import com.example.videoservice.event.VideoUploadEvent;
+import com.example.videoservice.event.VideoUploadedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +28,7 @@ class VideoServiceTest {
     private S3Client s3Client;
 
     @Mock
-    private KafkaTemplate<String, VideoUploadEvent> kafkaTemplate;
+    private KafkaTemplate<String, VideoUploadedEvent> kafkaTemplate;
 
     @InjectMocks
     private VideoService videoService;
@@ -52,10 +52,10 @@ class VideoServiceTest {
         assertTrue(videoKey.startsWith("raw/42/"));
         verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
 
-        ArgumentCaptor<VideoUploadEvent> eventCaptor = ArgumentCaptor.forClass(VideoUploadEvent.class);
+        ArgumentCaptor<VideoUploadedEvent> eventCaptor = ArgumentCaptor.forClass(VideoUploadedEvent.class);
         verify(kafkaTemplate).send(eq("video.uploaded"), eq("42"), eventCaptor.capture());
 
-        VideoUploadEvent event = eventCaptor.getValue();
+        VideoUploadedEvent event = eventCaptor.getValue();
         assertEquals(42L, event.getMovieId());
         assertEquals(videoKey, event.getVideoKey());
         assertEquals("test-bucket", event.getBucketName());

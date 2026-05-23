@@ -1,9 +1,8 @@
 package com.example.videoservice.event;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
+import java.time.LocalDateTime;
 
 /**
  * EVENT publish to kafks when a video is uploaded to s3
@@ -16,10 +15,15 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class VideoUploadEvent {
+@Builder
+public class VideoUploadedEvent {
     private Long movieId;
     private String videoKey;
     private String bucketName;
     private String originalFileName;
     private long fileSizeInBytes;
+    private String contentType;
+    private LocalDateTime uploadedAt;
+    //distributed tracing
+    private String correlationId;
 }

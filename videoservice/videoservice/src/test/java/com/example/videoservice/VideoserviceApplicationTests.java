@@ -1,6 +1,6 @@
 package com.example.videoservice;
 
-import com.example.videoservice.event.VideoUploadEvent;
+import com.example.videoservice.event.VideoUploadedEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -15,7 +15,7 @@ class VideoserviceApplicationTests {
 	private S3Client s3Client;
 
 	@MockBean
-	private KafkaTemplate<String, VideoUploadEvent> kafkaTemplate;
+	private KafkaTemplate<String, VideoUploadedEvent> kafkaTemplate;
 
 	@Test
 	void contextLoads() {
