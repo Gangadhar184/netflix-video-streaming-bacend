@@ -2,8 +2,10 @@ spring:
   application:
     name: contentservice
 
+
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/contentdb
+    url: jdbc:postgresql://localhost:5432/content_db
     username: postgres
     password: root123
     driver-class-name: org.postgresql.Driver
@@ -22,3 +24,6 @@ management:
     web:
       exposure:
         include: health,info
+
+server:
+  port: 8081
