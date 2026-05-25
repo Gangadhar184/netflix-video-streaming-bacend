@@ -7,7 +7,7 @@ import com.example.contentservice.model.Genre;
 import com.example.contentservice.model.Movie;
 import com.example.contentservice.model.VideoStatus;
 import com.example.contentservice.repository.ContentRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -22,10 +22,11 @@ public class ContentService {
 
     private final ContentRepository contentRepository;
 
-    //add movie metadata
+    private static final int MAX_PAGE_SIZE = 100;
+
+    // add movie metadata
     @Transactional
     public MovieResponse addMovie(MovieRequest request) {
-
         log.info("Adding movie: {}", request.getTitle());
 
         Movie movie = Movie.builder()
@@ -46,181 +47,127 @@ public class ContentService {
         return mapToResponse(savedMovie);
     }
 
-    //paginated the movie fetch
-    public Page<MovieResponse> getAllMovies(
-            int page,
-            int size
-    ) {
+    // paginated movie fetch — size clamped to MAX_PAGE_SIZE
+    public Page<MovieResponse> getAllMovies(int page, int size) {
+        size = Math.min(size, MAX_PAGE_SIZE);
 
-        Pageable pageable =
-                PageRequest.of(
-                        page,
-                        size,
-                        Sort.by("createdAt").descending()
-                );
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by("createdAt").descending()
+        );
 
         return contentRepository.findByDeletedFalse(pageable)
                 .map(this::mapToResponse);
     }
 
-    //get movie by id
+    // get movie by id
     public MovieResponse getMovieById(Long id) {
-
-        Movie movie = contentRepository.findById(id)
-                .filter(m -> !m.isDeleted())
+        Movie movie = contentRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new MovieNotFoundException(id));
 
         return mapToResponse(movie);
     }
 
-    //filter by genre
-    public Page<MovieResponse> getMoviesByGenre(
-            Genre genre,
-            int page,
-            int size
-    ) {
-
+    // filter by genre
+    public Page<MovieResponse> getMoviesByGenre(Genre genre, int page, int size) {
+        size = Math.min(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(page, size);
 
         return contentRepository
-                .findByGenreAndDeletedFalse(
-                        genre,
-                        pageable
-                )
+                .findByGenreAndDeletedFalse(genre, pageable)
                 .map(this::mapToResponse);
     }
 
-    //search by title
-    public Page<MovieResponse> searchMovies(
-            String title,
-            int page,
-            int size
-    ) {
-
+    // search by title
+    public Page<MovieResponse> searchMovies(String title, int page, int size) {
+        size = Math.min(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(page, size);
 
         return contentRepository
-                .findByTitleContainingIgnoreCaseAndDeletedFalse(
-                        title,
-                        pageable
-                )
+                .findByTitleContainingIgnoreCaseAndDeletedFalse(title, pageable)
                 .map(this::mapToResponse);
     }
 
-    //vidoe uploaded
+    // video uploaded — idempotent: ignore if already past PENDING
     @Transactional
-    public void updateVideoKey(
-            Long movieId,
-            String videoKey
-    ) {
+    public void updateVideoKey(Long movieId, String videoKey) {
+        Movie movie = getActiveMovie(movieId);
 
-        Movie movie = contentRepository.findById(movieId)
-                .orElseThrow(() ->
-                        new MovieNotFoundException(movieId));
+        if (movie.getVideoStatus() != VideoStatus.PENDING) {
+            log.warn("Ignoring duplicate upload event for movieId={}", movieId);
+            return;
+        }
 
         movie.setVideoKey(videoKey);
-
         movie.setVideoStatus(VideoStatus.UPLOADED);
-
         contentRepository.save(movie);
 
-        log.info(
-                "Video uploaded for movie: {}",
-                movieId
-        );
+        log.info("Video uploaded for movie: {}", movieId);
     }
 
-    //encoding
+    // encoding started
     @Transactional
     public void markEncodingStarted(Long movieId) {
-
-        Movie movie = contentRepository.findById(movieId)
-                .orElseThrow(() ->
-                        new MovieNotFoundException(movieId));
+        // Use getActiveMovie so soft-deleted movies are excluded
+        Movie movie = getActiveMovie(movieId);
 
         movie.setVideoStatus(VideoStatus.ENCODING);
-
         movie.setEncodingStartedAt(LocalDateTime.now());
-
         contentRepository.save(movie);
 
-        log.info(
-                "Encoding started for movie: {}",
-                movieId
-        );
+        log.info("Encoding started for movie: {}", movieId);
     }
 
-    //encoding completed
+    // encoding completed — idempotent: skip if already READY
     @Transactional
-    public void markEncodingCompleted(
-            Long movieId,
-            String hlsUrl
-    ) {
+    public void markEncodingCompleted(Long movieId, String hlsUrl) {
+        Movie movie = getActiveMovie(movieId);
 
-        Movie movie = contentRepository.findById(movieId)
-                .orElseThrow(() ->
-                        new MovieNotFoundException(movieId));
+        if (movie.getVideoStatus() == VideoStatus.READY) {
+            log.warn("Ignoring duplicate encoding-completed event for movieId={}", movieId);
+            return;
+        }
 
-        movie.setHlsUrl(hlsUrl);
-
+        movie.setHlsMasterPlaylistKey(hlsUrl);
         movie.setVideoStatus(VideoStatus.READY);
-
         movie.setEncodingCompletedAt(LocalDateTime.now());
-
         movie.setLastEncodingError(null);
-
         contentRepository.save(movie);
 
-        log.info(
-                "Movie ready for streaming: {}",
-                movieId
-        );
+        log.info("Movie ready for streaming: {}", movieId);
     }
 
-    //encoding failed
+    // encoding failed
     @Transactional
-    public void markEncodingFailed(
-            Long movieId,
-            String error
-    ) {
-
-        Movie movie = contentRepository.findById(movieId)
-                .orElseThrow(() ->
-                        new MovieNotFoundException(movieId));
+    public void markEncodingFailed(Long movieId, String error) {
+        // Use getActiveMovie so soft-deleted movies are excluded
+        Movie movie = getActiveMovie(movieId);
 
         movie.setVideoStatus(VideoStatus.FAILED);
-
         movie.setLastEncodingError(error);
-
         contentRepository.save(movie);
 
-        log.error(
-                "Encoding failed for movie: {}",
-                movieId
-        );
+        log.error("Encoding failed for movie: {}", movieId);
     }
 
-    //soft delete movie
+    // soft delete movie
     @Transactional
     public void deleteMovie(Long movieId) {
-
-        Movie movie = contentRepository.findById(movieId)
-                .orElseThrow(() ->
-                        new MovieNotFoundException(movieId));
+        Movie movie = getActiveMovie(movieId);
 
         movie.setDeleted(true);
-
         contentRepository.save(movie);
 
-        log.info(
-                "Movie soft deleted: {}",
-                movieId
-        );
+        log.info("Movie soft deleted: {}", movieId);
     }
 
+    private Movie getActiveMovie(Long movieId) {
+        return contentRepository.findByIdAndDeletedFalse(movieId)
+                .orElseThrow(() -> new MovieNotFoundException(movieId));
+    }
 
     private MovieResponse mapToResponse(Movie movie) {
-
         return MovieResponse.builder()
                 .id(movie.getId())
                 .title(movie.getTitle())
@@ -233,17 +180,11 @@ public class ContentService {
                 .thumbnailUrl(movie.getThumbnailUrl())
                 .durationMinutes(movie.getDurationMinutes())
                 .videoKey(movie.getVideoKey())
-                .hlsUrl(movie.getHlsUrl())
+                .hlsMasterPlaylistKey(movie.getHlsMasterPlaylistKey())
                 .videoStatus(movie.getVideoStatus())
-                .lastEncodingError(
-                        movie.getLastEncodingError()
-                )
-                .encodingStartedAt(
-                        movie.getEncodingStartedAt()
-                )
-                .encodingCompletedAt(
-                        movie.getEncodingCompletedAt()
-                )
+                .lastEncodingError(movie.getLastEncodingError())
+                .encodingStartedAt(movie.getEncodingStartedAt())
+                .encodingCompletedAt(movie.getEncodingCompletedAt())
                 .createdAt(movie.getCreatedAt())
                 .updatedAt(movie.getUpdatedAt())
                 .build();

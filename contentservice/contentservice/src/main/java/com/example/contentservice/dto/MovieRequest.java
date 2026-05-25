@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 public class MovieRequest {
 
     @NotBlank(message = "Title is required")
+    @Size(max = 255)
     private String title;
 
     @NotBlank(message = "Description is required")

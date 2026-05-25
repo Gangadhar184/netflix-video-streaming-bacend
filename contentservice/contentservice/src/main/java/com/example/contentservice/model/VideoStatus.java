@@ -1,17 +1,16 @@
 package com.example.contentservice.model;
 
-/*
-  * Tracks the video processing lifecycle
-  *
-  * flow:
-  * pending -> uploaded -> encoding -> encoded -> ready
-  *                                 -> Failed
+/**
+ * Tracks the video processing lifecycle.
+ *
+ * Flow:
+ *   PENDING → UPLOADED → ENCODING → READY
+ *                                 ↘ FAILED
  */
 public enum VideoStatus {
-    PENDING, //movie added but not uploaded yet
-    UPLOADED, // raw video uploaded to s3
-    ENCODING, // ffmpeg is encoding the vidoe
-    ENCODED,  // encoding complete
-    READY,    // HLS playlist ready -> can be streamed
-    FAILED    // encoding failed
+    PENDING,   // Movie metadata added, video not yet uploaded
+    UPLOADED,  // Raw video uploaded to S3
+    ENCODING,  // FFmpeg is encoding the video
+    READY,     // HLS playlist ready — can be streamed
+    FAILED     // Encoding failed
 }

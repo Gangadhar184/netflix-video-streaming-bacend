@@ -2,15 +2,14 @@ package com.example.videoservice.event;
 
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
- * EVENT publish to kafks when a video is uploaded to s3
- * encoding service consume this to starte ffmpeg processing
+ * Event published to Kafka when a video is uploaded to S3.
+ * Encoding service consumes this to start FFmpeg processing.
  *
  * TOPIC: video.uploaded
  */
-
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,7 +22,8 @@ public class VideoUploadedEvent {
     private String originalFileName;
     private long fileSizeInBytes;
     private String contentType;
-    private LocalDateTime uploadedAt;
-    //distributed tracing
+    // Instant is timezone-safe and consistent with VideoEncodedEvent in content-service
+    private Instant uploadedAt;
+    // For distributed tracing
     private String correlationId;
 }

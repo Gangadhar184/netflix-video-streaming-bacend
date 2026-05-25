@@ -11,14 +11,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "movies" ,
         indexes = {
-        @Index(
-                name = "idx_movie_title",
-                columnList = "title"
-        ),
-                @Index(
-                        name = "idx_movie_genre",
-                        columnList = "genre"
-                ),
+                @Index(name = "idx_movie_title", columnList = "title"),
+                @Index(name = "idx_movie_genre", columnList = "genre"),
                 @Index(name = "idx_movie_video_status", columnList = "videoStatus")
         }
 )
@@ -32,6 +26,9 @@ public class Movie {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false)
     private String title;
 
@@ -39,7 +36,7 @@ public class Movie {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private Genre genre;
 
     private String director;
@@ -52,15 +49,19 @@ public class Movie {
     @Column(precision = 3, scale = 1)
     private BigDecimal rating;
 
+    @Column(nullable = false)
     private String thumbnailUrl;
+
+    @Column(nullable = false)
     private int durationMinutes;
 
     //s3 key for video file
-
+    @Column(unique = true)
     private String videoKey;
 
     //HLS master playlist URL for streaming
-    private String hlsUrl;
+//    private String hlsUrl;
+    private String hlsMasterPlaylistKey;
 
     //status of video processsing
     @Enumerated(EnumType.STRING)
@@ -79,9 +80,11 @@ public class Movie {
     private boolean deleted = false;
 
     @CreationTimestamp
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
 
 }

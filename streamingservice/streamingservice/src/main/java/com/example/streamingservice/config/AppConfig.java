@@ -17,40 +17,50 @@ public class AppConfig {
 
     @Value("${aws.access-key}")
     private String accessKey;
+
     @Value("${aws.secret-key}")
     private String secretKey;
+
     @Value("${aws.region}")
     private String region;
 
+    /**
+     * FIX: AwsBasicCredentials was constructed twice with identical values —
+     * once for S3Client and once for S3Presigner. Extracted into a shared bean
+     * so credentials come from a single source of truth.
+     * Also makes it easy to swap for IAM role credentials later.
+     */
     @Bean
-    public S3Client s3Client() {
+    public StaticCredentialsProvider awsCredentialsProvider() {
+        return StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)
+        );
+    }
+
+    @Bean
+    public S3Client s3Client(StaticCredentialsProvider credentialsProvider) {
         return S3Client.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 
     @Bean
-    public S3Presigner s3Presigner() {
+    public S3Presigner s3Presigner(StaticCredentialsProvider credentialsProvider) {
         return S3Presigner.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 
     @Bean
     public RedisTemplate<String, String> redisTemplate(
             RedisConnectionFactory redisConnectionFactory
-    ){
+    ) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new StringRedisSerializer());
         return template;
     }
-
 }

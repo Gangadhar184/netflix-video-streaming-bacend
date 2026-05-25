@@ -35,7 +35,8 @@ public class MovieResponse {
 
     private String videoKey;
 
-    private String hlsUrl;
+//    private String hlsUrl;
+    private String hlsMasterPlaylistKey;
 
     private VideoStatus videoStatus;
 

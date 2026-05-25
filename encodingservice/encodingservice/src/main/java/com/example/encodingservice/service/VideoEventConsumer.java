@@ -9,130 +9,64 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
 /**
- * Kafka Consumer
+ * Kafka consumer for uploaded video events.
  *
  * Responsibilities:
- * 1. Listen for uploaded video events
- * 2. Trigger encoding pipeline
- * 3. Handle consumer-level failures
- * 4. Log metadata for observability
+ *  1. Listen for video.uploaded events
+ *  2. Trigger the encoding pipeline
+ *  3. Re-throw exceptions so Kafka retry / DLQ config takes effect
  *
- * FLOW:
+ * Flow:
+ *   VideoService → video.uploaded topic → VideoEventConsumer → EncodingService → video.encoded topic
  *
- * Video Service
- *      ↓
- * video.uploaded topic
- *      ↓
- * EncodingService
- *      ↓
- * video.encoded topic
+ * On exception:
+ *   Re-throwing lets your Kafka retry/DLQ configuration (spring.kafka.listener.*)
+ *   decide whether to retry, send to DLQ, or stop the consumer.
+ *   Never silently swallow exceptions here — content-service would never receive
+ *   the encoded event and the movie would stay stuck in ENCODING status.
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class VideoEventConsumer {
 
-    /**
-     * Main encoding service
-     */
     private final EncodingService encodingService;
 
-    /**
-     * Kafka consumer for uploaded videos
-     *
-     * Topic:
-     * video.uploaded
-     *
-     * Consumer Group:
-     * encoding-service-group
-     *
-     * NOTE:
-     * Group ID should ideally come from application.yml
-     */
     @KafkaListener(
             topics = "${kafka.topics.video-uploaded}",
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consumeVideoUploadedEvent(
-
-
-
             VideoUploadedEvent event,
-
-            /**
-             * Kafka metadata headers
-             */
-            @Header(KafkaHeaders.RECEIVED_KEY)
-            String key,
-
-            @Header(KafkaHeaders.RECEIVED_TOPIC)
-            String topic,
-
-            @Header(KafkaHeaders.RECEIVED_PARTITION)
-            int partition,
-
-            @Header(KafkaHeaders.OFFSET)
-            long offset
+            @Header(KafkaHeaders.RECEIVED_KEY)       String key,
+            @Header(KafkaHeaders.RECEIVED_TOPIC)     String topic,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET)             long offset
     ) {
-
-
-        log.info(
-                """
-                        
+        log.info("""
+                
                 ================================
                 VIDEO UPLOADED EVENT RECEIVED
                 ================================
-                Topic      : {}
-                Partition  : {}
-                Offset     : {}
-                Key        : {}
-                Movie ID   : {}
-                Video Key  : {}
+                Topic         : {}
+                Partition     : {}
+                Offset        : {}
+                Key           : {}
+                Movie ID      : {}
+                Video Key     : {}
+                Correlation ID: {}
                 ================================
                 """,
-                topic,
-                partition,
-                offset,
-                key,
-                event.getMovieId(),
-                event.getVideoKey()
-        );
+                topic, partition, offset, key,
+                event.getMovieId(), event.getVideoKey(), event.getCorrelationId());
 
         try {
-
-            /**
-             * Trigger encoding pipeline
-             */
             encodingService.encodeVideo(event);
-
-            log.info(
-                    "Encoding pipeline completed for movie: {}",
-                    event.getMovieId()
-            );
-
+            log.info("Encoding pipeline completed for movieId={}", event.getMovieId());
         } catch (Exception e) {
-
-            /**
-             * IMPORTANT:
-             *
-             * Never silently swallow exceptions.
-             *
-             * Depending on your Kafka retry strategy,
-             * throwing exception here may:
-             *
-             * - retry message
-             * - send to DLQ
-             * - stop consumer
-             *
-             * Current behavior:
-             * log + rethrow
-             */
-            log.error(
-                    "Failed to process uploaded video event for movie: {}",
-                    event.getMovieId(),
-                    e
-            );
-
+            log.error("Failed to process video uploaded event for movieId={}",
+                    event.getMovieId(), e);
+            // Re-throw so Kafka retry / DLQ configuration handles it
             throw e;
         }
     }

@@ -21,23 +21,30 @@ public class S3Config {
     @Value("${aws.region}")
     private String region;
 
+    /**
+     * Single credentials provider shared by both S3Client and S3Presigner.
+     * Previously, AwsBasicCredentials was constructed twice with the same values.
+     */
     @Bean
-    public S3Client s3Client() {
+    public StaticCredentialsProvider awsCredentialsProvider() {
+        return StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)
+        );
+    }
+
+    @Bean
+    public S3Client s3Client(StaticCredentialsProvider credentialsProvider) {
         return S3Client.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 
     @Bean
-    public S3Presigner s3Presigner() {
+    public S3Presigner s3Presigner(StaticCredentialsProvider credentialsProvider) {
         return S3Presigner.builder()
                 .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
+                .credentialsProvider(credentialsProvider)
                 .build();
     }
 }

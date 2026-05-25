@@ -5,7 +5,4 @@
       <sourceFolder url="file://$MODULE_DIR$/../../contentservice/contentservice/build/generated/sources/annotationProcessor/java/main" isTestSource="false" generated="true" />
     </content>
   </component>
-  <component name="CheckStyle-IDEA-Module" serialisationVersion="2">
-    <option name="activeLocationsIds" />
-  </component>
 </module>
